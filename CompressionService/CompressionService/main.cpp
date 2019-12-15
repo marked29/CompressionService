@@ -39,8 +39,8 @@ std::string compress(std::stringstream& stream) {
 		}
 	}
 
-	//Now one more character (and its count) is not pushed into compression_result, so we have to do this.
-	//This is because we peeked and found EOF therefore we stopped 
+	// now one more character (and its count) is not pushed into compression_result, so we have to do this.
+	// this is because we peeked and found EOF therefore we stopped 
 	construct_response(compression_result, character, character_count);
 
 	return compression_result.str();
