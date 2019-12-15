@@ -1,6 +1,23 @@
 #include <iostream>
 #include <sstream>
 
+void construct_response(std::ostream& result, char symbol, int character_counter) 
+{
+	// replacing a with 1a increases the character count instead of reducing it
+	// don't do it
+	if (character_counter == 1) {
+		result << symbol;
+	}
+	// replacing aa with 2a doesn't reduce the character count;
+	// don't do it
+	else if (character_counter == 2) {
+		result << symbol << symbol;
+	}
+	else {
+		result << character_counter << symbol;
+	}
+}
+
 std::string compress(std::stringstream& stream) {
 	char character = ' ';
 	char next_character = ' ';
@@ -15,20 +32,7 @@ std::string compress(std::stringstream& stream) {
 			stream >> next_character;   
 		}
 		else {
-			// replacing a with 1a increases the character count instead of reducing it; 
-			// don't do it
-			if (character_count == 1) {
-				compression_result << character;
-			}
-			// replacing aa with 2a doesn't reduce the character count;
-			// don't do it
-			else if (character_count == 2) {
-				compression_result << character << character;
-			}
-			else {
-				compression_result << character_count << character;
-			}
-
+			construct_response(compression_result, character, character_count);
 			character_count = 1;
 			stream >> next_character;
 			character = next_character;
@@ -37,17 +41,9 @@ std::string compress(std::stringstream& stream) {
 
 	//Now one more character (and its count) is not pushed into compression_result, so we have to do this.
 	//This is because we peeked and found EOF therefore we stopped 
-	if (character_count == 1) {
-		compression_result << character;
-	}
-	else if (character_count == 2) {
-		compression_result << character << character;
-	}
-	else {
-		compression_result << character_count << character;
-	}
+	construct_response(compression_result, character, character_count);
 
-	return compression_result.str();   // return the stringstream as a string
+	return compression_result.str();
 }
 
 int main() {
