@@ -6,7 +6,7 @@ int main() {
 	std::cin >> input;
 	std::unique_ptr<iDataCompressor> Compressor = std::make_unique<StringCompressor>(input);
 	Compressor->compress_data();
-	//Compressor->get_result();
+	std::cout << Compressor->get_result();
 	system("pause");
 	return 0;
 }

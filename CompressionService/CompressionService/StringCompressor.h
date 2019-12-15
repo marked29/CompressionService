@@ -1,6 +1,5 @@
 #pragma once
 #include "iDataCompressor.h"
-#include <string>
 #include <sstream>
 
 class StringCompressor : public iDataCompressor
@@ -41,7 +40,6 @@ public:
 	}
 	
 	void compress_data() override;
-	std::string get_result() const;
-
+	std::string get_result() const override ;
 };
 
