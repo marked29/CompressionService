@@ -76,6 +76,11 @@ private:
 
 	std::string compress_data(const std::string &raw_data)
 	{
+		if (raw_data.empty())
+		{
+			return "";
+		}
+
 		char character = ' ';
 		char next_character = ' ';
 		std::ostringstream compression_result;
