@@ -13,172 +13,88 @@
 #include <utility>
 #include <string>
 #include <sstream>
-#define ASIO_STANDALONE
 
+#define ASIO_STANDALONE
 #include "asio.hpp"
 using asio::ip::tcp;
 
-class session : public std::enable_shared_from_this<session>
-{
-public:
-	session(tcp::socket socket)
-		: socket_(std::move(socket))
-	{
-	}
-
-	void start()
-	{
-		do_read();
-	}
-
-private:
-	void do_read()
-	{
-		auto self(shared_from_this());
-		socket_.async_read_some(asio::buffer(data_, max_length),
-			[this, self](std::error_code ec, std::size_t length)
-			{
-				if (!ec)
-				{
-					print_data(length);
-					do_write(length);
-				}
-			});
-	}
-
-	void do_write(std::size_t length)
-	{
-		auto self(shared_from_this());
-		asio::async_write(socket_, asio::buffer(compress_data(data_to_string(length)).c_str(), length),
-			[this, self](std::error_code ec, std::size_t /*length*/)
-			{
-				if (!ec)
-				{
-					do_read();
-				}
-			});
-	}
-
-	void print_data(std::size_t length)
-	{
-		std::cout << data_to_string(length) << std::endl;
-	}
-
-	std::string data_to_string(std::size_t length)
-	{
-		std::string data_string_ = "";
-		for (size_t i = 0; i < length; i++)
-		{
-			data_string_.push_back(data_[i]);
-		}
-		return data_string_;
-	}
-
-	std::string compress_data(const std::string &raw_data)
-	{
-		if (raw_data.empty())
-		{
-			return "";
-		}
-
-		char character = ' ';
-		char next_character = ' ';
-		std::ostringstream compression_result;
-		
-		std::stringstream stream(raw_data);
-		stream >> character;
-		
-		int character_count = 1;
-
-		while ((next_character = stream.peek()) != EOF) {
-			if (next_character == character) {
-				character_count++;
-				stream >> next_character;
-			}
-			else {
-				// replacing a with 1a increases the character count instead of reducing it; 
-				// don't do it
-				if (character_count == 1) {
-					compression_result << character;
-				}
-				// replacing aa with 2a doesn't reduce the character count;
-				// don't do it
-				else if (character_count == 2) {
-					compression_result << character << character;
-				}
-				else {
-					compression_result << character_count << character;
-				}
-
-				character_count = 1;
-				stream >> next_character;
-				character = next_character;
-			}
-		}
-
-		//Now one more character (and its count) is not pushed into compression_result, so we have to do this.
-		//This is because we peeked and found EOF therefore we stopped 
-		if (character_count == 1) {
-			compression_result << character;
-		}
-		else if (character_count == 2) {
-			compression_result << character << character;
-		}
-		else {
-			compression_result << character_count << character;
-		}
-
-		return compression_result.str();   // return the stringstream as a string
-	}
-
-
-	tcp::socket socket_;
-	enum { max_length = 1024 };
-	char data_[max_length];
+enum Status {
+	Ping = 1,
+	GetStats,
+	ResetStats,
+	Compress
 };
 
-class server
+struct Header
 {
-public:
-	server(asio::io_context& io_context, short port)
-		: acceptor_(io_context, tcp::endpoint(tcp::v4(), port))
-	{
-		do_accept();
-	}
+	uint32_t wide_magic_value = 0x53545259;
+	uint16_t payload_size;
+	uint16_t code_status;
+	std::string payload;
 
-private:
-	void do_accept()
-	{
-		acceptor_.async_accept(
-			[this](std::error_code ec, tcp::socket socket)
-			{
-				if (!ec)
-				{
-					std::make_shared<session>(std::move(socket))->start();
-				}
-
-				do_accept();
-			});
-	}
-
-	tcp::acceptor acceptor_;
 };
+
+
+void Deserialize(const char* data_)
+{
+	Header message;
+	memcpy(&message, data_, sizeof(Header));
+	std::cout << "Header: " << message.wide_magic_value << " :" << message.payload_size << " :" << message.code_status << std::endl;
+	std::cout << "Payload: " << message.payload << std::endl;
+};
+
+const int max_length = 1024;
+
+void session(tcp::socket sock)
+{
+	try
+	{
+		for (;;)
+		{
+			char data[max_length];
+			char payload[max_length];
+
+			asio::error_code error;
+			size_t length = sock.read_some(asio::buffer(data), error);
+
+			Deserialize(data);
+
+			if (error == asio::error::eof)
+				break; // Connection closed cleanly by peer.
+			else if (error)
+				throw asio::system_error(error); // Some other error.
+
+			asio::write(sock, asio::buffer(data, sizeof(Header)));
+		}
+	}
+	catch (std::exception& e)
+	{
+		std::cerr << "Exception in thread: " << e.what() << "\n";
+	}
+}
+
+void server(asio::io_context& io_context, unsigned short port)
+{
+	tcp::acceptor a(io_context, tcp::endpoint(tcp::v4(), port));
+	for (;;)
+	{
+		std::thread(session, a.accept()).detach();
+	}
+}
 
 int main(int argc, char* argv[])
 {
 	try
 	{
-		if (argc != 2)
-		{
-			std::cerr << "Usage: async_tcp_echo_server <port>\n";
-			return 1;
-		}
+		//if (argc != 2)
+		//{
+		//	std::cerr << "Usage: blocking_tcp_echo_server <port>\n";
+		//	return 1;
+		//}
 
 		asio::io_context io_context;
 
-		server s(io_context, std::atoi(argv[1]));
-
-		io_context.run();
+		server(io_context, 4000);
 	}
 	catch (std::exception& e)
 	{
